@@ -168,3 +168,54 @@ module "cluster" {
     Terraform   = "true"
   }
 }
+    cluster_instance_class = "db.r8g.large"
+    instances = {
+      one   = {}
+      two   = {}
+      three = {}
+    }
+    cluster_instance_class = "db.r8g.large"
+    instances = {
+      one   = {}
+      two   = {}
+      three = {}
+    }
+
+    autoscaling_enabled      = true
+    autoscaling_min_capacity = 2
+    autoscaling_max_capacity = 5
+
+    cluster_instance_class = "db.r8g.large"
+    instances = {
+      one = {}
+    }
+
+    autoscaling_enabled      = true
+    autoscaling_min_capacity = 1
+    autoscaling_max_capacity = 5
+
+    cluster_instance_class = "db.r8g.large"
+    instances = {
+      one = {}
+    }
+
+    autoscaling_enabled      = true
+    autoscaling_min_capacity = 1
+    autoscaling_max_capacity = 5
+
+    cluster_instance_class = "db.r8g.large"
+    instances = {
+      one = {
+        instance_class      = "db.r8g.2xlarge"
+        publicly_accessible = true
+      }
+      two = {
+        identifier     = "static-member-1"
+        instance_class = "db.r8g.2xlarge"
+      }
+      three = {
+        identifier     = "excluded-member-1"
+        instance_class = "db.r8g.large"
+        promotion_tier = 15
+      }
+    }
