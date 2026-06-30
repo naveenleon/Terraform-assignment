@@ -106,3 +106,65 @@ resource "aws_autoscaling_group" "asg" {
 
   health_check_type = "EC2"
 }
+# root directory main.tf
+
+module "dev_storage" {
+  source      = "./modules/s3_bucket"
+  bucket_name = "mycompany-app-data-dev"
+  environment = "dev"
+}
+
+module "prod_storage" {
+  source      = "./modules/s3_bucket"
+  bucket_name = "mycompany-app-data-prod"
+  environment = "prod"
+}
+
+# Accessing module outputs in the root level
+output "production_bucket_arn" {
+  value = module.prod_storage.bucket_arn
+}
+module "eks_cluster" {
+  # HTTPS URL with a specified version tag (?ref=)
+  source = "git::https://github.com"
+
+  cluster_name = "application-cluster"
+  node_count   = 3
+}
+module "cluster" {
+  source  = "terraform-aws-modules/rds-aurora/aws"
+
+  name           = "test-aurora-db-postgres96"
+  engine         = "aurora-postgresql"
+  engine_version = "17.5"
+
+  cluster_instance_class = "db.r8g.large"
+  instances = {
+    one = {}
+    two = {
+      instance_class = "db.r8g.2xlarge"
+    }
+  }
+
+  vpc_id               = "vpc-12345678"
+  db_subnet_group_name = "db-subnet-group"
+  security_group_ingress_rules = {
+    ex1_ingress = {
+      cidr_ipv4 = "10.20.0.0/20"
+    }
+    ex1_ingress = {
+      referenced_security_group_id = "sg-12345678"
+    }
+  }
+
+  storage_encrypted   = true
+  apply_immediately   = true
+  monitoring_interval = 10
+
+  enabled_cloudwatch_logs_exports = ["postgresql"]
+
+  tags = {
+    Environment = "dev"
+    Terraform   = "true"
+  }
+}
