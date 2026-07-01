@@ -1,58 +1,53 @@
-name: Terraform CI/CD
+name: Terraform CI
 
 on:
-  push:
+  pull_request:
     branches:
       - main
 
-  pull_request:
-
-  schedule:
-    - cron: '0 */6 * * *'
-
 jobs:
   terraform:
-    name: Terraform Pipeline
     runs-on: ubuntu-latest
 
-    defaults:
-      run:
-        working-directory: environments/dev
+    permissions:
+      contents: read
+      pull-requests: write
 
     steps:
-
-      # Checkout Code
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      # Install Terraform
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
-
-      # AWS Credentials
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
+          terraform_version: 1.9.0
 
-      # Terraform Init
+      - name: Terraform Format Check
+        run: terraform fmt -check -recursive
+
       - name: Terraform Init
         run: terraform init
 
-      # Terraform Format Check
-      - name: Terraform Format
-        run: terraform fmt -check -recursive
-
-      # Terraform Validate
       - name: Terraform Validate
         run: terraform validate
 
-      # Terraform Plan
       - name: Terraform Plan
-        run: terraform plan -no-color
+        id: plan
+        run: |
+          terraform plan -no-color -out=tfplan > plan.txt
+        continue-on-error: true
 
-      # Drift Detection
-      - name: Terraform Drift Detection
-        run: terraform plan -detailed-exitcode
+      - name: Comment Plan on PR
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const plan = fs.readFileSync('plan.txt', 'utf8');
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## Terraform Plan\n\`\`\`\n${plan}\n\`\`\``
+            });
