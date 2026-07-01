@@ -1,187 +1,180 @@
-# Terraform AWS Infrastructure Project
+# Terraform AWS Infrastructure
 
-## Overview
+## Project Overview
 
-This project provisions a secure and scalable AWS infrastructure using Terraform. It follows Infrastructure as Code (IaC) best practices by using reusable modules, remote state management, environment-specific configurations, and parameterized variables.
+This project provisions a highly available AWS infrastructure using Terraform. The infrastructure is modular, reusable, and supports multiple environments (Development and Production). It follows Terraform best practices such as remote state management, state locking, environment separation, reusable modules, and variable parameterization.
 
 ---
 
 # Architecture
 
-The infrastructure includes:
+The infrastructure consists of the following components:
 
-- VPC
-- Public and Private Subnets across two Availability Zones
-- Internet Gateway
-- NAT Gateway
-- Public and Private Route Tables
-- Security Groups
-- Application Load Balancer (ALB)
-- Auto Scaling Group (ASG)
-- EC2 Instances in Private Subnets
-- Remote Terraform Backend (S3)
-- State Locking (DynamoDB)
+```
+                       Internet
+                           |
+                    Internet Gateway
+                           |
+                 Public Route Table
+                           |
+        +------------------+------------------+
+        |                                     |
+ Public Subnet (AZ-1)                Public Subnet (AZ-2)
+        |                                     |
+        +------------- Application Load Balancer ------------+
+                              |
+                     Target Group
+                              |
+          Auto Scaling Group (EC2 Instances)
+                 |                      |
+     Private Subnet (AZ-1)    Private Subnet (AZ-2)
+                 |
+             NAT Gateway
+                 |
+          Private Route Table
+                 |
+                VPC
+```
 
 ---
 
-# Project Structure
+# Repository Structure
 
 ```
-terraform-project/
+terraform-aws-infra/
 │
 ├── modules/
 │   ├── vpc/
+│   │   ├── main.tf
+│   │   ├── variables.tf
+│   │   └── outputs.tf
+│   │
 │   ├── security-group/
+│   │   ├── main.tf
+│   │   ├── variables.tf
+│   │   └── outputs.tf
+│   │
 │   ├── alb/
+│   │   ├── main.tf
+│   │   ├── variables.tf
+│   │   └── outputs.tf
+│   │
 │   ├── ec2/
+│   │   ├── main.tf
+│   │   ├── variables.tf
+│   │   └── outputs.tf
+│   │
 │   └── autoscaling/
+│       ├── main.tf
+│       ├── variables.tf
+│       └── outputs.tf
 │
 ├── environments/
 │   ├── dev/
+│   │   ├── backend.tf
+│   │   ├── provider.tf
 │   │   ├── main.tf
-│   │   ├── variables.tf
 │   │   ├── terraform.tfvars
-│   │   └── backend.tf
+│   │   └── variables.tf
 │   │
 │   └── prod/
+│       ├── backend.tf
+│       ├── provider.tf
 │       ├── main.tf
-│       ├── variables.tf
 │       ├── terraform.tfvars
-│       └── backend.tf
+│       └── variables.tf
 │
-├── .gitignore
+├── .github/
+│   └── workflows/
+│       └── terraform.yml
+│
 ├── README.md
-└── modules
+└── .gitignore
 ```
 
 ---
 
-# Prerequisites
+# Modules
 
-Before running Terraform, install:
+## VPC Module
 
-- Terraform
-- AWS CLI
-- Git
+Creates:
 
-Configure AWS credentials:
-
-```
-aws configure
-```
-
-or use environment variables:
-
-```
-export AWS_ACCESS_KEY_ID=<your-access-key>
-export AWS_SECRET_ACCESS_KEY=<your-secret-key>
-export AWS_DEFAULT_REGION=ap-south-1
-```
+- VPC
+- Public Subnets
+- Private Subnets
+- Internet Gateway
+- NAT Gateway
+- Route Tables
 
 ---
 
-# Initialize Terraform
+## Security Group Module
 
-Move into the required environment.
+Creates:
+
+- ALB Security Group
+- EC2 Security Group
+
+---
+
+## ALB Module
+
+Creates:
+
+- Application Load Balancer
+- Target Group
+- Listener
+
+---
+
+## EC2 Module
+
+Creates:
+
+- Launch Template
+- EC2 Configuration
+
+---
+
+## Auto Scaling Module
+
+Creates:
+
+- Auto Scaling Group
+- Scaling Policies
+
+---
+
+# Environments
+
+The project contains two independent environments.
+
+## Development
+
+Lower instance sizes.
 
 Example:
 
 ```
-cd environments/dev
-```
-
-Initialize Terraform.
-
-```
-terraform init
+instance_type = "t2.micro"
+desired_capacity = 2
 ```
 
 ---
 
-# Format Configuration
+## Production
 
-```
-terraform fmt
-```
-
----
-
-# Validate Configuration
-
-```
-terraform validate
-```
-
----
-
-# Generate Execution Plan
-
-For Development:
-
-```
-terraform plan -var-file="terraform.tfvars"
-```
-
-For Production:
-
-```
-cd ../prod
-
-terraform plan -var-file="terraform.tfvars"
-```
-
----
-
-# Apply Infrastructure
-
-```
-terraform apply -var-file="terraform.tfvars"
-```
-
-Type:
-
-```
-yes
-```
-
-when prompted.
-
----
-
-# Destroy Infrastructure
-
-```
-terraform destroy -var-file="terraform.tfvars"
-```
-
----
-
-# Environment Configuration
-
-The same Terraform modules are shared by both environments.
-
-Only the values inside:
-
-- dev/terraform.tfvars
-- prod/terraform.tfvars
-
-are different.
+Higher capacity.
 
 Example:
-
-Development
-
-```
-instance_type = "t3.micro"
-desired_capacity = 1
-```
-
-Production
 
 ```
 instance_type = "t3.medium"
-desired_capacity = 3
+desired_capacity = 4
 ```
+
+Only the variable values change; the Terraform modules remain the same.
 
 ---
 
@@ -189,53 +182,181 @@ desired_capacity = 3
 
 Terraform state is stored remotely in an S3 bucket.
 
-State locking is enabled using DynamoDB to prevent concurrent updates.
+State locking is provided using DynamoDB.
+
+Example backend configuration:
+
+```
+S3 Bucket
+    |
+terraform.tfstate
+    |
+DynamoDB Table
+(State Lock)
+```
+
+Benefits:
+
+- Shared state
+- Prevents concurrent modifications
+- Versioning support
+- Secure storage
+
+---
+
+# CI/CD
+
+GitHub Actions workflow performs:
+
+- terraform fmt
+- terraform init
+- terraform validate
+- terraform plan
+
+The generated Terraform plan is attached to Pull Requests for review before merging.
 
 ---
 
 # Security Best Practices
 
-- No AWS credentials are stored in the repository.
-- No secrets are hardcoded.
-- State files are not committed.
-- Sensitive values are managed outside Terraform.
-- Security Groups follow the principle of least privilege.
+- No AWS credentials stored in the repository.
+- Secrets are never committed.
+- Sensitive values are passed using environment variables or GitHub Secrets.
+- Terraform state file is stored remotely.
+- `.terraform/` directory is ignored.
+- `terraform.tfstate` files are ignored.
 
 ---
 
-# .gitignore
+# Variables
+
+Environment-specific values are stored in:
 
 ```
-.terraform/
-*.tfstate
-*.tfstate.*
 terraform.tfvars
-crash.log
+```
+
+Examples include:
+
+- Region
+- Instance type
+- Desired capacity
+- Maximum capacity
+- VPC CIDR
+
+---
+
+# Outputs
+
+Terraform outputs include:
+
+- VPC ID
+- Public Subnet IDs
+- Private Subnet IDs
+- Load Balancer DNS Name
+- Auto Scaling Group Name
+
+---
+
+# Deployment Flow
+
+```
+Developer
+
+     │
+
+terraform init
+
+     │
+
+terraform plan
+
+     │
+
+Review Changes
+
+     │
+
+terraform apply
+
+     │
+
+AWS Infrastructure Created
 ```
 
 ---
 
-# Sample Terraform Plan
+# Terraform Commands
+
+Initialize Terraform
 
 ```
-Plan: 18 to add, 0 to change, 0 to destroy.
+terraform init
+```
+
+Format code
+
+```
+terraform fmt
+```
+
+Validate configuration
+
+```
+terraform validate
+```
+
+Generate execution plan
+
+```
+terraform plan
+```
+
+Apply infrastructure
+
+```
+terraform apply
+```
+
+Destroy infrastructure
+
+```
+terraform destroy
 ```
 
 ---
 
-# Technologies Used
+# State Management
 
-- Terraform
-- AWS VPC
-- EC2
-- Auto Scaling
+The following files should **not** be committed to Git:
+
+```
+terraform.tfstate
+terraform.tfstate.backup
+.terraform/
+*.tfplan
+```
+
+These are excluded using `.gitignore`.
+
+---
+
+# Features
+
+- Modular architecture
+- Multi-environment support
+- Remote backend with S3
+- DynamoDB state locking
 - Application Load Balancer
-- Security Groups
-- S3 Backend
-- DynamoDB State Locking
+- Private EC2 instances
+- Auto Scaling Group
+- GitHub Actions CI/CD
+- Parameterized configuration
+- Secure secret management
+- Reusable Terraform modules
 
 ---
 
 # Author
 
-Naveen
+Terraform AWS Infrastructure for DevOps Assessment.
